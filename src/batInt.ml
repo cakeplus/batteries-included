@@ -226,15 +226,53 @@ module BaseSafeInt = struct
   (** Open this module and [SafeInt] to replace traditional integer
       operators with their safe counterparts *)
 
+  (* a+b overflows iff:
+     a < 0 && b < 0 && a+b >= 0 || a >= 0 && b >= 0 && a+b < 0
+
+     The same as a truth table, where + is "positive", - is "negative"
+     (determined by the leftmost bit of the binary representation):
+     | a            | ++++---- |
+     | b            | ++--++-- |
+     | c = a+b      | +-+-+-+- |
+     | overflow     | -+----+- | (+ is "overflow happens")
+
+     Computing "overflow" from a, b, and c:
+     | a            | ++++---- |
+     | b            | ++--++-- |
+     | c = a+b      | +-+-+-+- |
+     | d = a lxor c | -+-++-+- |
+     | e = b lxor c | -++--++- |
+     | f = d land e | -+----+- | = overflow
+  *)
   let add a b =
     let c = Pervasives.( + ) a b in
-    if a < 0 && b < 0 && c >= 0 || a > 0 && b > 0 && c <= 0 then raise Overflow
-    else c
+    if (a lxor c) land (b lxor c) < 0 then
+      raise Overflow;
+    c
 
+  (* a-b overflows iff:
+     a < 0 && b >= 0 && a-b >= 0 || a >= 0 && b < 0 && a-b < 0
+
+     The same as a truth table, where + is "positive", - is "negative"
+     (determined by the leftmost bit of the binary representation):
+     | a            | ++++---- |
+     | b            | ++--++-- |
+     | c = a-b      | +-+-+-+- |
+     | overflow     | ---++--- | (+ is "overflow happens")
+
+     Computing "overflow" from a, b, and c:
+     | a            | ++++---- |
+     | b            | ++--++-- |
+     | c = a-b      | +-+-+-+- |
+     | d = a lxor b | --++++-- |
+     | e = a lxor c | -+-++-+- |
+     | f = d land e | ---++--- | = overflow
+  *)
   let sub a b =
     let c = Pervasives.( - ) a b in
-    if a < 0 && b > 0 && c >= 0 || a > 0 && b < 0 && c <= 0 then raise Overflow
-    else c
+    if (a lxor b) land (a lxor c) < 0 then
+      raise Overflow;
+    c
 
   let neg x = if x <> min_int then ~- x else raise Overflow
 
